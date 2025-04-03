@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:timer_rubik/providers/notification_service.dart';
 import 'package:timer_rubik/views/records.dart';
 import 'dart:async';
 import 'package:timer_rubik/views/scramble.dart';
 import 'package:timer_rubik/providers/scramble_providers.dart';
 import 'package:timer_rubik/providers/times_providers.dart';
-import 'package:camera/camera.dart';
-import 'package:geolocator/geolocator.dart';
-import 'dart:io'; 
 
 class RubikTimer extends StatefulWidget {
   const RubikTimer({super.key});
@@ -23,54 +21,24 @@ class _RubikTimerState extends State<RubikTimer> {
   final Utils utils = Utils();
   String _currentScramble = "";
 
-  CameraController? _cameraController;
-  String? _imagePath;
-  Position? _currentPosition;
-
   @override
   void initState() {
     super.initState();
     _generateNewScramble();
-    _initializeCamera();
-    _getCurrentLocation();
   }
 
-  void _initializeCamera() async {
-    final cameras = await availableCameras();
-    _cameraController = CameraController(cameras[0], ResolutionPreset.high);
-    await _cameraController?.initialize();
-  }
+  double? getPB(List<Map<String, dynamic>> times) {
+    List<double> sortedTimes = times
+        .map((t) => double.tryParse(t['time'].toString()) ?? double.infinity)
+        .toList()
+      ..sort();
 
-  void _getCurrentLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return;
-      }
-    }
-
-    _currentPosition = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    );
-    setState(() {});
-  }
-
-  void _generateNewScramble() {
-    setState(() {
-      _currentScramble = utils.getScramble();
-    });
+    return sortedTimes.isNotEmpty ? sortedTimes.first : null;
   }
 
   void _startTimer() {
-    final scrambleProvider = Provider.of<ScrambleProvider>(context, listen: false);
+    final scrambleProvider =
+        Provider.of<ScrambleProvider>(context, listen: false);
     scrambleProvider.addScramble(_currentScramble);
 
     _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
@@ -87,30 +55,35 @@ class _RubikTimerState extends State<RubikTimer> {
     setState(() {
       _isRunning = false;
       timesProvider.addTime(_time);
+      
+      final currentPb = getPB(timesProvider.times);
+      if (currentPb != null && _time < currentPb) {
+        NotificationService().showInstantNotification(
+          title: '¡Nuevo récord personal!',
+          body: 'Has establecido un nuevo PB: ${_time.toStringAsFixed(2)} segundos',
+        );
+      }
+      
       _time = 0.0;
     });
   }
 
-  Future<void> _takePicture() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return;
-    }
-
-    final XFile file = await _cameraController!.takePicture();
+  void _generateNewScramble() {
     setState(() {
-      _imagePath = file.path;
+      _currentScramble = utils.getScramble();
     });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _cameraController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final times = Provider.of<TimesProvider>(context).times;
+    
     return Scaffold(
       body: Column(
         children: [
@@ -140,26 +113,7 @@ class _RubikTimerState extends State<RubikTimer> {
               ),
             ),
           ),
-          const RecordsTimes(),
-          if (_imagePath != null)
-            Image.file(
-              File(_imagePath!),
-              height: 100,
-              width: 100,
-            ),
-          ElevatedButton(
-            onPressed: _takePicture,
-            child: const Text('Tomar Foto'),
-          ),
-          if (_currentPosition != null)
-            Text(
-              'Ubicación: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}',
-              style: const TextStyle(fontSize: 16),
-            ),
-          ElevatedButton(
-            onPressed: _getCurrentLocation,
-            child: const Text('Obtener Ubicación'),
-          ),
+          RecordsTimes(times: times), // Ahora esto debería funcionar
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:timer_rubik/providers/notification_service.dart';
 import 'package:timer_rubik/views/records.dart';
 import 'dart:async';
 import 'package:timer_rubik/views/scramble.dart';
@@ -26,6 +27,16 @@ class _RubikTimerState extends State<RubikTimer> {
     _generateNewScramble();
   }
 
+  // Añade este método para calcular el PB
+  double? getPB(List<Map<String, dynamic>> times) {
+    List<double> sortedTimes = times
+        .map((t) => double.tryParse(t['time'].toString()) ?? double.infinity)
+        .toList()
+      ..sort();
+
+    return sortedTimes.isNotEmpty ? sortedTimes.first : null;
+  }
+
   void _startTimer() {
     final scrambleProvider =
         Provider.of<ScrambleProvider>(context, listen: false);
@@ -45,6 +56,16 @@ class _RubikTimerState extends State<RubikTimer> {
     setState(() {
       _isRunning = false;
       timesProvider.addTime(_time);
+      
+      // Notificación de nuevo récord
+      final currentPb = getPB(timesProvider.times);
+      if (currentPb != null && _time < currentPb) {
+        NotificationService().showInstantNotification(
+          title: '¡Nuevo récord personal!',
+          body: 'Has establecido un nuevo PB: ${_time.toStringAsFixed(2)} segundos',
+        );
+      }
+      
       _time = 0.0;
     });
   }
@@ -63,6 +84,8 @@ class _RubikTimerState extends State<RubikTimer> {
 
   @override
   Widget build(BuildContext context) {
+    final times = Provider.of<TimesProvider>(context).times;
+    
     return Scaffold(
       body: Column(
         children: [
@@ -92,7 +115,7 @@ class _RubikTimerState extends State<RubikTimer> {
               ),
             ),
           ),
-          const RecordsTimes(), // Pasa la lista de tiempos
+          RecordsTimes(times: times), // Pasa la lista de tiempos
         ],
       ),
     );

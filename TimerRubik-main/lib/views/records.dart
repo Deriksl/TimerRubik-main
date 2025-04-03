@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:timer_rubik/providers/times_providers.dart';
 
 class RecordsTimes extends StatelessWidget {
-  const RecordsTimes({super.key});
+  final List<Map<String, dynamic>> times;
+
+  const RecordsTimes({
+    super.key,
+    required this.times,
+  });
 
   String getCurrentTime(List<Map<String, dynamic>> times) {
     if (times.isEmpty) {
@@ -23,7 +27,7 @@ class RecordsTimes extends StatelessWidget {
 
   String getPBao(int howMany, List<Map<String, dynamic>> times) {
     if (times.length < howMany) {
-      return "--"; // No hay suficientes datos para calcular el promedio.
+      return "--";
     }
 
     List<double> lastTimes = times
@@ -32,21 +36,18 @@ class RecordsTimes extends StatelessWidget {
         .toList();
 
     lastTimes.removeWhere((t) => t.isNaN);
-
     lastTimes.sort();
+    
     if (lastTimes.length > 2) {
       lastTimes = lastTimes.sublist(1, lastTimes.length - 1);
     }
 
     double average = lastTimes.reduce((a, b) => a + b) / lastTimes.length;
-
     return average.toStringAsFixed(2);
   }
 
   @override
   Widget build(BuildContext context) {
-    final times = Provider.of<TimesProvider>(context).times;
-
     return Container(
       color: Colors.transparent,
       height: 100,
